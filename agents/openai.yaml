@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Summarizer"
+  short_description: "Summarize originals into review notes"
+  default_prompt: "Use $review-summarizer to summarize this local original into raw/review/current."

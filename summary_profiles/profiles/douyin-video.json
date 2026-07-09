@@ -1,0 +1,16 @@
+{
+  "profile_id": "douyin-video",
+  "material_type": "抖音收藏视频 / 抖音图文笔记",
+  "model_config_path": "../model_configs/openai-compatible-default.json",
+  "prompt_path": "../prompts/douyin-video.md",
+  "capture_skill": "/Users/Admin/Documents/Obsidian Vault/Codex Skills/dy-faves-puller/SKILL.md",
+  "summary_skill": "/Users/Admin/Documents/Obsidian Vault/Codex Skills/review-summarizer/SKILL.md",
+  "original_root": "raw/originals/douyin/assets/ and raw/originals/douyin/pulls/",
+  "review_output_root": "raw/review/current/<category>/",
+  "required_sections": [
+    "## 摘要",
+    "## 详细内容",
+    "## 注意事项",
+    "## 本地文件"
+  ]
+}

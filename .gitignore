@@ -1,0 +1,60 @@
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*secret*
+*secrets*
+*credential*
+*credentials*
+*apikey*
+*api-key*
+*token*
+
+# Local model/provider overrides that may contain API keys
+summary_profiles/model_configs/*.local.json
+summary_profiles/model_configs/*-local.json
+summary_profiles/model_configs/local-*.json
+summary_profiles/model_configs/private/
+agents/*.local.yaml
+agents/*.private.yaml
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.python-version
+.venv/
+venv/
+env/
+
+# Test, coverage, and tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Logs and temporary output
+*.log
+logs/
+tmp/
+.tmp/
+temp/
+
+# Build/package output
+build/
+dist/
+*.egg-info/
+
+# OS/editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

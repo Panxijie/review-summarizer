@@ -1,0 +1,13 @@
+{
+  "profile_id": "general-article",
+  "material_type": "普通网页文章 / 博客 / Newsletter",
+  "model_config_path": "../model_configs/openai-compatible-default.json",
+  "prompt_path": "../prompts/general-article.md",
+  "original_root": "raw/originals/web/<YYYY-MM-DD>/",
+  "review_output_root": "raw/review/current/",
+  "required_sections": [
+    "## 摘要",
+    "## 详细内容",
+    "## 注意事项"
+  ]
+}
