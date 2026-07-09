@@ -12,8 +12,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from dotenv_loader import load_dotenv
 
-DEFAULT_PROFILES_ROOT = Path(__file__).resolve().parents[1] / "summary_profiles"
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PROFILES_ROOT = SKILL_ROOT / "summary_profiles"
 
 
 def resolve_wiki_root(value: Path) -> Path:
@@ -186,6 +188,8 @@ def default_output_path(wiki_root: Path, title: str) -> Path:
 
 
 def main() -> int:
+    load_dotenv(SKILL_ROOT / ".env")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--wiki-root", type=Path, default=Path("Wiki Library"))
     parser.add_argument("--profiles-root", type=Path, default=DEFAULT_PROFILES_ROOT)

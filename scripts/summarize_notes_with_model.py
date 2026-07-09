@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from dotenv_loader import load_dotenv
 from note_metadata import split_frontmatter, render_frontmatter
 
 
@@ -203,6 +204,8 @@ def rewrite_note(
 
 
 def main() -> int:
+    load_dotenv(SKILL_ROOT / ".env")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
