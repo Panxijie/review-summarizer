@@ -34,6 +34,26 @@ Use the selected profile's prompt and model config. Do not improvise a different
 - The chosen profile has a prompt and model config.
 - If the model call sends private local materials to an external API, the user has allowed that material to be sent.
 
+## DeepSeek Key in Codex Desktop (macOS)
+
+Before a DeepSeek call, check only whether the configured key environment variable exists; never print its value. If the configured `api_key_env` is missing, do not send local materials or ask the user to paste the key into chat.
+
+For Codex desktop on macOS, explain that a shell `export` does not modify an already-running GUI app. Ask the user to run this in Terminal, replacing the placeholder locally:
+
+```zsh
+launchctl setenv DEEPSEEK_API_KEY 'your-key-here'
+```
+
+Then ask them to fully quit Codex with Command-Q and reopen it before retrying. This makes the variable available to subsequently launched GUI apps for the current login session. Do not put the key in the vault, repository, skill files, command output, or chat.
+
+To remove the variable later, provide:
+
+```zsh
+launchctl unsetenv DEEPSEEK_API_KEY
+```
+
+After the user restarts Codex, re-check only whether the variable exists. If it is still absent, report that the Codex process has not inherited the environment variable and ask the user to confirm the launch/restart; never search user configuration files or reveal secrets.
+
 ## Article Workflow
 
 Use this for WeChat, web articles, blogs, newsletters, and manually clipped text files.
