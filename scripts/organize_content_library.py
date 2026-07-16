@@ -25,11 +25,12 @@ from note_metadata import compact_content_type, compact_count, render_frontmatte
 
 
 CATEGORY_RULES = [
-    ("影音与娱乐", r"相声|曲艺|影视|美剧|电影|剧集|综艺|脱口秀|播客|说唱|音乐|歌曲|MV|演出|娱乐"),
-    ("科研与学习", r"科研|论文|学术|基金申报|文献|学习方法|课程|教育"),
+    ("职场发展", r"职场|求职|就业|职业选择|职业规划|岗位|面试|HR|背调|大厂|校招|春招|offer|工作经验|投简历|LeetCode|力扣|机考|笔试"),
+    ("技术与工具", r"Codex|AI|Agent|Skill|插件|模型|软件|工具|电脑|VPN|零信任|网络|编程|服务器|NAS|Transformer|Attention"),
+    ("科研与学习", r"科研|论文|学术|基金申报|文献|学习方法|课程|教育|大学|录取|考研|英语"),
+    ("日常生活", r"生活经验|消费|购物|健康|减脂|营养|护肤|穿搭|香水|手机壳|数码配件|摄影|构图|秃|脱发|黑头"),
     ("情感与关系", r"恋爱|择偶|爱情|情感|婚姻|伴侣|NPD|人格|亲密关系"),
-    ("生活与职场", r"职场|求职|就业|职业选择|职业规划|岗位|面试|HR|工作经验|生活经验|消费|购物|健康"),
-    ("技术与工具", r"Codex|AI|Agent|Skill|插件|模型|软件|工具|电脑|VPN|零信任|网络|编程|服务器|NAS"),
+    ("影音与娱乐", r"相声|曲艺|影视|美剧|电影|剧集|追剧|综艺|脱口秀|说唱|音乐|歌曲|MV|演出|娱乐"),
 ]
 
 
@@ -42,7 +43,8 @@ def classify(title: str, tags: list[str], body: str) -> tuple[str, str]:
     primary = "\n".join([title, " ".join(map(str, tags))])
     category = next((name for name, pattern in CATEGORY_RULES if re.search(pattern, primary, re.I)), None)
     if not category:
-        category = next((name for name, pattern in CATEGORY_RULES if re.search(pattern, body[:2500], re.I)), "待分类")
+        # Body text can mention platform tags such as “视频播客扶持计划”; keep this fallback narrow.
+        category = next((name for name, pattern in CATEGORY_RULES if re.search(pattern, body[:800], re.I)), "待分类")
     if category == "技术与工具":
         if re.search(r"VPN|零信任|网络|服务器|NAS", primary, re.I):
             return category, "编程与网络"
@@ -55,12 +57,30 @@ def classify(title: str, tags: list[str], body: str) -> tuple[str, str]:
         return category, "人际心理" if re.search(r"NPD|人格|操控|心理", primary, re.I) else "恋爱择偶"
     if category == "影音与娱乐":
         return category, "相声曲艺" if re.search(r"相声|曲艺", primary, re.I) else "影视片段"
-    if category == "生活与职场":
-        if re.search(r"面试|HR", primary, re.I):
+    if category == "职场发展":
+        if re.search(r"背调", primary, re.I):
+            return category, "背调与求职规则"
+        if re.search(r"LeetCode|力扣|Attention|机考|笔试|算法|大模型面试", primary, re.I):
+            return category, "技术面试"
+        if re.search(r"面试|HR|offer", primary, re.I):
             return category, "面试表达"
-        if re.search(r"就业|职业|岗位", primary, re.I):
-            return category, "职业规划"
-        return category, "职场技能" if re.search(r"职场|求职|工作", primary, re.I) else "生活经验"
+        if re.search(r"就业|职业|岗位|求职|投简历|校招|春招", primary, re.I):
+            return category, "求职与职业规划"
+        return category, "职场信息"
+    if category == "日常生活":
+        if re.search(r"减脂|营养|蛋白质|饮食", primary, re.I):
+            return category, "饮食与健康"
+        if re.search(r"护肤|黑头|秃|脱发", primary, re.I):
+            return category, "护肤与个人护理"
+        if re.search(r"穿搭|衣服", primary, re.I):
+            return category, "穿搭选购"
+        if re.search(r"香水", primary, re.I):
+            return category, "香水选购"
+        if re.search(r"手机壳|数码配件", primary, re.I):
+            return category, "数码配件"
+        if re.search(r"摄影|构图", primary, re.I):
+            return category, "摄影与审美"
+        return category, "生活经验"
     return category, "待分类"
 
 
@@ -357,10 +377,12 @@ def main() -> int:
     parser.add_argument("--report", type=Path)
     parser.add_argument("--note-title-overrides", type=Path, help="JSON mapping index, URL, or original title to a summary-based note title.")
     parser.add_argument("--apply", action="store_true", help="Apply moves. Default is a preview.")
+    parser.add_argument("--allow-nonempty-current", action="store_true", help="Append into raw/review/current even when it already contains review notes.")
     args = parser.parse_args()
 
     if args.apply:
-        assert_current_review_empty(args.output)
+        if not args.allow_nonempty_current:
+            assert_current_review_empty(args.output)
         ensure_review_dirs(args.output)
     manifest_path = find_manifest(args.output, args.manifest)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -378,7 +400,7 @@ def main() -> int:
 
     for item in manifest:
         index = int(item["index"])
-        if item.get("status") in {"skipped_entertainment", "already_processed"} and not item.get("note"):
+        if item.get("status") in {"skipped_entertainment", "skipped_note", "already_processed"} and not item.get("note"):
             print(f"[{index:02d}] {item.get('status')}")
             continue
         note_source = Path(item["note"])
