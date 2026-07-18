@@ -28,9 +28,10 @@ CATEGORY_RULES = [
     ("职场发展", r"职场|求职|就业|职业选择|职业规划|岗位|面试|HR|背调|大厂|校招|春招|offer|工作经验|投简历|LeetCode|力扣|机考|笔试"),
     ("技术与工具", r"Codex|AI|Agent|Skill|插件|模型|软件|工具|电脑|VPN|零信任|网络|编程|服务器|NAS|Transformer|Attention"),
     ("科研与学习", r"科研|论文|学术|基金申报|文献|学习方法|课程|教育|大学|录取|考研|英语"),
-    ("日常生活", r"生活经验|消费|购物|健康|减脂|营养|护肤|穿搭|香水|手机壳|数码配件|摄影|构图|秃|脱发|黑头"),
-    ("情感与关系", r"恋爱|择偶|爱情|情感|婚姻|伴侣|NPD|人格|亲密关系"),
-    ("影音与娱乐", r"相声|曲艺|影视|美剧|电影|剧集|追剧|综艺|脱口秀|说唱|音乐|歌曲|MV|演出|娱乐"),
+    ("财务与资产", r"财富|理财|投资|基金|股票|纳斯达克|纳指|定投|资产配置|财务自由|攒钱|花钱|搞钱|富人思维|消费观|现金流|负债|储蓄|止盈|止损|回撤|ETF|QDII"),
+    ("日常生活", r"生活经验|消费|购物|健康|减脂|营养|护肤|穿搭|香水|手机壳|数码配件|摄影|构图|秃|脱发|黑头|假货|验货|添柏岚|汽车|汽油|发动机|燃油|装修|家装|智能家居|家电|家具|茶叶|茶文化|茶生活|线香"),
+    ("情感与关系", r"恋爱|择偶|爱情|情感|婚姻|伴侣|NPD|人格|亲密关系|暧昧|约会|撩|聊天技巧"),
+    ("影音与娱乐", r"相声|曲艺|影视|美剧|电影|剧集|追剧|综艺|脱口秀|说唱|音乐|歌曲|MV|演出|娱乐|游戏|艾尔登法环"),
 ]
 
 
@@ -53,6 +54,8 @@ def classify(title: str, tags: list[str], body: str) -> tuple[str, str]:
         return category, "AI与自动化"
     if category == "科研与学习":
         return category, "科研工具"
+    if category == "财务与资产":
+        return category, "待分类"
     if category == "情感与关系":
         return category, "人际心理" if re.search(r"NPD|人格|操控|心理", primary, re.I) else "恋爱择偶"
     if category == "影音与娱乐":
@@ -72,7 +75,7 @@ def classify(title: str, tags: list[str], body: str) -> tuple[str, str]:
             return category, "饮食与健康"
         if re.search(r"护肤|黑头|秃|脱发", primary, re.I):
             return category, "护肤与个人护理"
-        if re.search(r"穿搭|衣服", primary, re.I):
+        if re.search(r"穿搭|衣服|鞋|靴|添柏岚|假货|验货", primary, re.I):
             return category, "穿搭选购"
         if re.search(r"香水", primary, re.I):
             return category, "香水选购"
@@ -400,7 +403,7 @@ def main() -> int:
 
     for item in manifest:
         index = int(item["index"])
-        if item.get("status") in {"skipped_entertainment", "skipped_note", "already_processed"} and not item.get("note"):
+        if not item.get("note"):
             print(f"[{index:02d}] {item.get('status')}")
             continue
         note_source = Path(item["note"])
