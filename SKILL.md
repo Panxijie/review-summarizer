@@ -91,6 +91,20 @@ python3 "Codex Skills/review-summarizer/scripts/summarize_notes_with_model.py" \
 
 This rewrites only each staging note body below YAML frontmatter and preserves metadata such as `likes`, `comments`, `favorites`, `shares`, `tags`, `source_url`, `duration`, and `content_type`.
 
+### Completion gate before organization
+
+Do not run `organize_content_library.py --apply` merely because the summarizer has started. First wait for every selected model call to exit successfully, then verify each eligible record (`status: ok` with readable `note` and `transcript`) has:
+
+- `summary_model` and `summary_generated_at` recorded in the manifest;
+- `## 摘要`, `## 详细内容`, and `## 注意事项` in its note body; and
+- no fallback headings such as `## 内容脉络（自动提取）` or `## 整理状态`.
+
+If any record is missing, stale, or invalid, keep it out of review and repair or retry it before organization. Treat a process timeout or a detached process with incomplete logs as incomplete, not as a successful summary run.
+
+For long manifests, summarize one index or a small bounded batch at a time with `--indices`, using a durable local job rather than one foreground serial command. Give each model call time to reach the configured request timeout, verify the batch result, then continue. Do not run concurrent writers against the same manifest; use separate shard manifests or sequential calls.
+
+When a pull reuses prior assets or review notes, match records by the pair `(pull_id, manifest_item_index)`, never by `manifest_item_index` alone. Confirm the selected note and transcript paths exist before sending them to the model; if they do not, rebuild a pull-scoped repair manifest instead of silently skipping the item or modifying a note from another pull.
+
 Preview organization:
 
 ```bash
@@ -109,6 +123,8 @@ python3 "Codex Skills/review-summarizer/scripts/organize_content_library.py" \
   --pulled-at "YYYY-MM-DD HH:MM" \
   --apply
 ```
+
+If `raw/review/current/` already contains notes, append only when the user explicitly authorizes merging into that batch; then add `--allow-nonempty-current`. This permission does not waive the completion gate above.
 
 The apply pass writes candidate notes under `Wiki Library/raw/review/current/<category>/`, moves local source assets into `Wiki Library/raw/originals/douyin/assets/`, and updates the manifest with final paths.
 
