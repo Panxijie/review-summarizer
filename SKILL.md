@@ -128,6 +128,15 @@ If `raw/review/current/` already contains notes, append only when the user expli
 
 The apply pass writes candidate notes under `Wiki Library/raw/review/current/<category>/`, moves local source assets into `Wiki Library/raw/originals/douyin/assets/`, and updates the manifest with final paths.
 
+### Douyin review 分类规则
+
+候选笔记只使用现有的细分目录：`技术与工具`、`科研与学习`、`财务与资产`、`职场与发展`、`情感与关系`、`日常与生活` 和 `待分类`；不得重新创建或使用 `生活与职场`、`职场发展`、`日常生活` 或 `影音与娱乐`。
+
+- 金融、财经、宏观经济、汇率、货币、银行、房地产、投资与资产配置归入 `财务与资产`。
+- 阅读、书籍、宗教、法律、法学和司法相关内容归入 `科研与学习`。
+- 影音与娱乐内容由 `dy-faves-puller` 标记为 `skipped_entertainment`，保留在拉取清单中但不生成 review 候选或 `current` 分类目录。
+- 仅在无法根据标题、标签和正文可靠判断时，才使用 `待分类`。
+
 ## Review Note Requirements
 
 All candidate notes should help the reader decide whether to delete, move to `raw/favorites/`, or leave for later wiki promotion.
@@ -143,7 +152,7 @@ Douyin notes must contain:
 - `## 摘要`
 - `## 详细内容`
 - `## 注意事项`
-- `## 本地文件` when local media or transcript assets exist
+- `## 本地文件` when local media or transcript assets exist. For each successfully processed video, this section must be the final section and link to all three local files: MP4 (`原视频`), transcript (`转写稿`), and audio (`音频`). A model refresh must preserve this section; if it is absent, run `scripts/backfill_douyin_local_file_links.py` against the pull manifest before delivery.
 
 Do not optimize for the shortest possible note. Preserve examples, steps, settings, comparisons, names, numbers, claims, caveats, and reusable phrasing when they are present in the source.
 

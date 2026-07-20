@@ -25,13 +25,12 @@ from note_metadata import compact_content_type, compact_count, render_frontmatte
 
 
 CATEGORY_RULES = [
-    ("职场发展", r"职场|求职|就业|职业选择|职业规划|岗位|面试|HR|背调|大厂|校招|春招|offer|工作经验|投简历|LeetCode|力扣|机考|笔试"),
     ("技术与工具", r"Codex|AI|Agent|Skill|插件|模型|软件|工具|电脑|VPN|零信任|网络|编程|服务器|NAS|Transformer|Attention"),
-    ("科研与学习", r"科研|论文|学术|基金申报|文献|学习方法|课程|教育|大学|录取|考研|英语"),
-    ("财务与资产", r"财富|理财|投资|基金|股票|纳斯达克|纳指|定投|资产配置|财务自由|攒钱|花钱|搞钱|富人思维|消费观|现金流|负债|储蓄|止盈|止损|回撤|ETF|QDII"),
-    ("日常生活", r"生活经验|消费|购物|健康|减脂|营养|护肤|穿搭|香水|手机壳|数码配件|摄影|构图|秃|脱发|黑头|假货|验货|添柏岚|汽车|汽油|发动机|燃油|装修|家装|智能家居|家电|家具|茶叶|茶文化|茶生活|线香"),
+    ("科研与学习", r"科研|论文|学术|基金申报|文献|学习方法|课程|教育|大学|录取|考研|英语|阅读|读书|书籍|书单|好书|文学|宗教|佛教|道教|基督教|神学|法律|法学|刑法|民法|司法|判例"),
+    ("财务与资产", r"财富|理财|投资|基金|股票|纳斯达克|纳指|定投|资产配置|财务自由|攒钱|花钱|搞钱|富人思维|消费观|现金流|负债|储蓄|止盈|止损|回撤|ETF|QDII|金融|财经|经济|汇率|货币|银行|房地产|房价"),
+    ("职场与发展", r"职场|求职|就业|职业选择|职业规划|岗位|面试|HR|背调|大厂|校招|春招|offer|工作经验|投简历|LeetCode|力扣|机考|笔试"),
+    ("日常与生活", r"生活经验|消费|购物|健康|减脂|营养|护肤|穿搭|香水|手机壳|数码配件|摄影|构图|秃|脱发|黑头|假货|验货|添柏岚|汽车|汽油|发动机|燃油|装修|家装|智能家居|家电|家具|茶叶|茶文化|茶生活|线香"),
     ("情感与关系", r"恋爱|择偶|爱情|情感|婚姻|伴侣|NPD|人格|亲密关系|暧昧|约会|撩|聊天技巧"),
-    ("影音与娱乐", r"相声|曲艺|影视|美剧|电影|剧集|追剧|综艺|脱口秀|说唱|音乐|歌曲|MV|演出|娱乐|游戏|艾尔登法环"),
 ]
 
 
@@ -42,6 +41,7 @@ def slugify(value: str, fallback: str) -> str:
 
 def classify(title: str, tags: list[str], body: str) -> tuple[str, str]:
     primary = "\n".join([title, " ".join(map(str, tags))])
+    classification_text = f"{primary}\n{body[:800]}"
     category = next((name for name, pattern in CATEGORY_RULES if re.search(pattern, primary, re.I)), None)
     if not category:
         # Body text can mention platform tags such as “视频播客扶持计划”; keep this fallback narrow.
@@ -53,14 +53,14 @@ def classify(title: str, tags: list[str], body: str) -> tuple[str, str]:
             return category, "软件工具"
         return category, "AI与自动化"
     if category == "科研与学习":
-        return category, "科研工具"
+        return category, "科研与学习"
     if category == "财务与资产":
-        return category, "待分类"
+        if re.search(r"经济|汇率|货币|银行|房地产|房价|宏观", classification_text, re.I):
+            return category, "宏观经济与市场"
+        return category, "个人财务与资产配置"
     if category == "情感与关系":
         return category, "人际心理" if re.search(r"NPD|人格|操控|心理", primary, re.I) else "恋爱择偶"
-    if category == "影音与娱乐":
-        return category, "相声曲艺" if re.search(r"相声|曲艺", primary, re.I) else "影视片段"
-    if category == "职场发展":
+    if category == "职场与发展":
         if re.search(r"背调", primary, re.I):
             return category, "背调与求职规则"
         if re.search(r"LeetCode|力扣|Attention|机考|笔试|算法|大模型面试", primary, re.I):
@@ -70,7 +70,7 @@ def classify(title: str, tags: list[str], body: str) -> tuple[str, str]:
         if re.search(r"就业|职业|岗位|求职|投简历|校招|春招", primary, re.I):
             return category, "求职与职业规划"
         return category, "职场信息"
-    if category == "日常生活":
+    if category == "日常与生活":
         if re.search(r"减脂|营养|蛋白质|饮食", primary, re.I):
             return category, "饮食与健康"
         if re.search(r"护肤|黑头|秃|脱发", primary, re.I):

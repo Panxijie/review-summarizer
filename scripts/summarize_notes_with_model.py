@@ -131,6 +131,12 @@ def validate_body(body: str, note_path: Path) -> None:
         raise RuntimeError(f"{note_path}: summary is {len(summary)} chars; must be <= 50")
 
 
+def local_file_section(body: str) -> str:
+    """Keep organizer-managed local asset links when refreshing a summary."""
+    match = re.search(r"(?:^|\n)(## 本地文件\n.*?)(?=\n## |\Z)", body, re.S)
+    return match.group(1).strip() if match else ""
+
+
 def build_user_prompt(item: dict, meta: dict, transcript: str, max_chars: int) -> str:
     source_title = meta.get("original_title") or meta.get("title") or item.get("title") or ""
     fields = {
@@ -172,7 +178,8 @@ def rewrite_note(
     if not note_path.exists() or not transcript_path.exists():
         return None
     note_text = note_path.read_text(encoding="utf-8")
-    meta, _body = split_frontmatter(note_text)
+    meta, previous_body = split_frontmatter(note_text)
+    previous_local_files = local_file_section(previous_body)
     transcript = transcript_path.read_text(encoding="utf-8", errors="ignore")
     messages = [
         {"role": "system", "content": system_prompt},
@@ -199,7 +206,10 @@ def rewrite_note(
             ])
             body = chat_completion(config, messages)
     if not dry_run:
-        note_path.write_text(render_frontmatter(meta) + "\n\n" + body.rstrip() + "\n", encoding="utf-8")
+        final_body = body.rstrip()
+        if previous_local_files:
+            final_body += "\n\n" + previous_local_files
+        note_path.write_text(render_frontmatter(meta) + "\n\n" + final_body + "\n", encoding="utf-8")
     return body
 
 

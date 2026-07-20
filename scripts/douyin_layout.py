@@ -7,7 +7,17 @@ from pathlib import Path
 
 
 DEFAULT_OUTPUT = Path("Wiki Library/raw/originals/douyin")
-REVIEW_CATEGORIES = ["技术与工具", "科研与学习", "情感与关系", "生活与职场", "待分类"]
+# Candidate-review categories mirror the user-facing folders under
+# raw/review/current.  Keep this list in sync with organize_content_library.
+REVIEW_CATEGORIES = [
+    "技术与工具",
+    "科研与学习",
+    "财务与资产",
+    "职场与发展",
+    "情感与关系",
+    "日常与生活",
+    "待分类",
+]
 
 
 def pulls_root(output: Path) -> Path:
