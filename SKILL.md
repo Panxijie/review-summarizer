@@ -128,6 +128,10 @@ If `raw/review/current/` already contains notes, append only when the user expli
 
 The apply pass writes candidate notes under `Wiki Library/raw/review/current/<category>/`, moves local source assets into `Wiki Library/raw/originals/douyin/assets/`, and updates the manifest with final paths.
 
+### Periodic progress reports
+
+If the user asks for periodic progress updates during a long model-summary or organization run, create a heartbeat automation attached to the current Codex thread. Unless the user specifies another interval, report every 3 minutes. Each report should use the pull manifest and local process state to state the selected, model-complete, validated, and organized counts, plus the current batch or error state; never expose API keys, request bodies, responses, source text, cookies, or signed URLs. When every selected eligible record has passed the completion gate and organization has completed, report the final result and delete the heartbeat automation. Also delete it if the run is cancelled or the batch scope materially changes.
+
 ### Douyin review 分类规则
 
 候选笔记只使用现有的细分目录：`技术与工具`、`科研与学习`、`财务与资产`、`职场与发展`、`情感与关系`、`日常与生活` 和 `待分类`；不得重新创建或使用 `生活与职场`、`职场发展`、`日常生活` 或 `影音与娱乐`。
