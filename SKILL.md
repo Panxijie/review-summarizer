@@ -103,6 +103,8 @@ If any record is missing, stale, or invalid, keep it out of review and repair or
 
 For long manifests, summarize one index or a small bounded batch at a time with `--indices`, using a durable local job rather than one foreground serial command. Give each model call time to reach the configured request timeout, verify the batch result, then continue. Do not run concurrent writers against the same manifest; use separate shard manifests or sequential calls.
 
+If a batch stops because one item fails validation, times out, or returns an API error, do not leave the remaining selected items idle. First identify the failed index from the log and manifest, retry that index with the profile's repair mechanism or a bounded retry, and validate the repaired note. Then resume the remaining unsummarized indices in subsequent sequential batches. Keep successful manifest entries intact, and report the failed index and recovery state through the heartbeat. Treat the whole summary run as incomplete until every selected eligible record has passed the completion gate.
+
 When a pull reuses prior assets or review notes, match records by the pair `(pull_id, manifest_item_index)`, never by `manifest_item_index` alone. Confirm the selected note and transcript paths exist before sending them to the model; if they do not, rebuild a pull-scoped repair manifest instead of silently skipping the item or modifying a note from another pull.
 
 Preview organization:
@@ -130,7 +132,7 @@ The apply pass writes candidate notes under `Wiki Library/raw/review/current/<ca
 
 ### Periodic progress reports
 
-If the user asks for periodic progress updates during a long model-summary or organization run, create a heartbeat automation attached to the current Codex thread. Unless the user specifies another interval, report every 3 minutes. Each report should use the pull manifest and local process state to state the selected, model-complete, validated, and organized counts, plus the current batch or error state; never expose API keys, request bodies, responses, source text, cookies, or signed URLs. When every selected eligible record has passed the completion gate and organization has completed, report the final result and delete the heartbeat automation. Also delete it if the run is cancelled or the batch scope materially changes.
+When a long model-summary or organization run starts, immediately create a heartbeat automation attached to the current Codex thread; do this by default without waiting for the user to request periodic updates. Unless the user specifies another interval, report every 5 minutes. Each report should use the pull manifest and local process state to state the selected, model-complete, validated, and organized counts, plus the current batch or error state; never expose API keys, request bodies, responses, source text, cookies, or signed URLs. When every selected eligible record has passed the completion gate and organization has completed, report the final result and delete the heartbeat automation. Also delete it if the run is cancelled or the batch scope materially changes.
 
 ### Douyin review 分类规则
 
