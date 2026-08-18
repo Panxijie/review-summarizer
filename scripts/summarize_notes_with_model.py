@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
 import os
 import re
@@ -94,8 +96,8 @@ def chat_completion(config: dict, messages: list[dict[str, str]]) -> str:
         with urllib.request.urlopen(req, timeout=int(config.get("timeout_seconds", 120))) as resp:
             result = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Summary API error {exc.code}: {body}") from exc
+        exc.read()
+        raise RuntimeError(f"Summary API HTTP error {exc.code}") from exc
     choices = result.get("choices") or []
     if choices:
         message = choices[0].get("message") or {}
@@ -105,7 +107,48 @@ def chat_completion(config: dict, messages: list[dict[str, str]]) -> str:
     text = result.get("output_text")
     if isinstance(text, str) and text.strip():
         return text.strip()
-    raise RuntimeError(f"Summary API returned no text: {json.dumps(result, ensure_ascii=False)[:1000]}")
+    raise RuntimeError("Summary API returned no text")
+
+
+def chat_completion_with_retry(
+    config: dict,
+    messages: list[dict[str, str]],
+    request_attempts: int,
+    retry_delay_seconds: float,
+    index: int,
+    stats: dict[str, int],
+) -> str:
+    attempts = max(1, request_attempts)
+    for attempt in range(1, attempts + 1):
+        stats["api_calls"] = stats.get("api_calls", 0) + 1
+        try:
+            return chat_completion(config, messages)
+        except Exception as exc:
+            if attempt >= attempts:
+                raise
+            print(
+                f"[{index}] request_retry attempt={attempt}/{attempts} error={safe_error_label(exc)}",
+                flush=True,
+            )
+            time.sleep(max(0.0, retry_delay_seconds) * attempt)
+    raise RuntimeError("Unreachable request retry state")
+
+
+def safe_error_label(exc: Exception) -> str:
+    message = str(exc).lower()
+    if "http error 429" in message:
+        return "HTTP429"
+    if "http error" in message:
+        return "HTTPError"
+    if "returned no text" in message:
+        return "NoText"
+    if "model output missing" in message or "missing summary section" in message:
+        return "MissingHeading"
+    if "summary is " in message:
+        return "SummaryLength"
+    if "timed out" in message:
+        return "Timeout"
+    return type(exc).__name__
 
 
 def compact_transcript(text: str, max_chars: int) -> str:
@@ -121,7 +164,12 @@ def validate_body(body: str, note_path: Path) -> None:
     for heading in ("## 摘要", "## 详细内容", "## 注意事项"):
         if heading not in body:
             raise RuntimeError(f"{note_path}: model output missing {heading}")
-    if "## Summary" in body or "## 内容脉络（自动提取）" in body or "## Notes" in body:
+    if (
+        "## Summary" in body
+        or "## 内容脉络（自动提取）" in body
+        or "## 整理状态" in body
+        or "## Notes" in body
+    ):
         raise RuntimeError(f"{note_path}: model output still contains draft fallback headings")
     match = re.search(r"^## 摘要\s*$([\s\S]*?)(?=^##\s+|\Z)", body, re.M)
     if not match:
@@ -168,15 +216,18 @@ def rewrite_note(
     max_transcript_chars: int,
     dry_run: bool,
     repair_attempts: int,
-) -> str | None:
+    request_attempts: int,
+    retry_delay_seconds: float,
+    stats: dict[str, int],
+) -> str:
     note_value = item.get("note")
     transcript_value = item.get("transcript")
     if not note_value or not transcript_value:
-        return None
+        raise RuntimeError("Missing local note or transcript path")
     note_path = Path(note_value)
     transcript_path = Path(transcript_value)
     if not note_path.exists() or not transcript_path.exists():
-        return None
+        raise FileNotFoundError("Missing local note or transcript file")
     note_text = note_path.read_text(encoding="utf-8")
     meta, previous_body = split_frontmatter(note_text)
     previous_local_files = local_file_section(previous_body)
@@ -185,7 +236,15 @@ def rewrite_note(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": build_user_prompt(item, meta, transcript, max_transcript_chars)},
     ]
-    body = chat_completion(config, messages)
+    index = int(item.get("index", 0))
+    body = chat_completion_with_retry(
+        config,
+        messages,
+        request_attempts,
+        retry_delay_seconds,
+        index,
+        stats,
+    )
     for _attempt in range(repair_attempts + 1):
         try:
             validate_body(body, note_path)
@@ -204,13 +263,38 @@ def rewrite_note(
                     ),
                 },
             ])
-            body = chat_completion(config, messages)
+            body = chat_completion_with_retry(
+                config,
+                messages,
+                request_attempts,
+                retry_delay_seconds,
+                index,
+                stats,
+            )
     if not dry_run:
         final_body = body.rstrip()
         if previous_local_files:
             final_body += "\n\n" + previous_local_files
         note_path.write_text(render_frontmatter(meta) + "\n\n" + final_body + "\n", encoding="utf-8")
     return body
+
+
+def write_manifest_atomic(path: Path, manifest: list[dict]) -> None:
+    temp_path = path.with_name(path.name + ".tmp")
+    temp_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.replace(path)
+
+
+def acquire_manifest_lock(manifest_path: Path):
+    digest = hashlib.sha256(str(manifest_path.resolve()).encode("utf-8")).hexdigest()[:16]
+    lock_path = Path("/private/tmp") / f"review-summarizer-{digest}.lock"
+    handle = lock_path.open("a", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        handle.close()
+        raise SystemExit("Another summary writer already holds the manifest lock") from exc
+    return handle
 
 
 def main() -> int:
@@ -224,31 +308,115 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--print-output", action="store_true", help="Print generated Markdown bodies to stdout.")
     parser.add_argument("--repair-attempts", type=int, default=1, help="Retry model output when validation fails.")
+    parser.add_argument("--request-attempts", type=int, default=1, help="Retry transient API/no-text failures per model call.")
+    parser.add_argument("--item-attempts", type=int, default=1, help="Retry an entire item before deferring it.")
+    parser.add_argument("--failure-rounds", type=int, default=1, help="Sequential passes over items that still fail.")
+    parser.add_argument("--retry-delay-seconds", type=float, default=5.0)
+    parser.add_argument("--continue-on-error", action="store_true", help="Continue other items, then retry failures in later rounds.")
+    parser.add_argument("--require-model", help="Exit unless config.model exactly matches this value.")
     args = parser.parse_args()
 
     config = load_config(args.config)
+    if args.require_model and config.get("model") != args.require_model:
+        raise SystemExit(
+            f"Configured model {config.get('model')!r} does not match required model {args.require_model!r}"
+        )
     system_prompt = load_system_prompt(config, args.config)
+    _lock_handle = acquire_manifest_lock(args.manifest)
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     wanted = set(args.indices or [])
+    selected = [
+        item
+        for item in manifest
+        if item.get("status") == "ok"
+        and (not wanted or int(item.get("index", 0)) in wanted)
+    ]
+    pending = selected
     count = 0
-    for item in manifest:
-        index = int(item.get("index", 0))
-        if wanted and index not in wanted:
-            continue
-        if item.get("status") != "ok":
-            continue
-        print(f"[{index}] summarizing", flush=True)
-        body = rewrite_note(item, config, system_prompt, args.max_transcript_chars, args.dry_run, args.repair_attempts)
-        if body is not None:
-            count += 1
-            if args.print_output:
-                print(f"\n--- GENERATED NOTE BODY index={index} ---\n{body}\n--- END GENERATED NOTE BODY index={index} ---", flush=True)
-            if not args.dry_run:
-                item["summary_model"] = config.get("model")
-                item["summary_generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-                args.manifest.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        else:
-            print(f"[{index}] skipped: missing note or transcript", flush=True)
+    elapsed_by_index: dict[int, float] = {}
+    calls_by_index: dict[int, int] = {}
+    attempts_by_index: dict[int, int] = {}
+    rounds = max(1, args.failure_rounds)
+
+    for round_number in range(1, rounds + 1):
+        if not pending:
+            break
+        current = pending
+        pending = []
+        if round_number > 1:
+            print(
+                f"retry_round={round_number}/{rounds} pending_indices="
+                + ",".join(str(int(item.get("index", 0))) for item in current),
+                flush=True,
+            )
+        for item in current:
+            index = int(item.get("index", 0))
+            item_succeeded = False
+            for item_attempt in range(1, max(1, args.item_attempts) + 1):
+                attempts_by_index[index] = attempts_by_index.get(index, 0) + 1
+                stats = {"api_calls": 0}
+                started = time.monotonic()
+                print(
+                    f"[{index}] summarizing round={round_number}/{rounds} "
+                    f"item_attempt={item_attempt}/{max(1, args.item_attempts)}",
+                    flush=True,
+                )
+                try:
+                    body = rewrite_note(
+                        item,
+                        config,
+                        system_prompt,
+                        args.max_transcript_chars,
+                        args.dry_run,
+                        args.repair_attempts,
+                        args.request_attempts,
+                        args.retry_delay_seconds,
+                        stats,
+                    )
+                except Exception as exc:
+                    elapsed_by_index[index] = elapsed_by_index.get(index, 0.0) + (time.monotonic() - started)
+                    calls_by_index[index] = calls_by_index.get(index, 0) + stats["api_calls"]
+                    print(
+                        f"[{index}] failed item_attempt={item_attempt}/{max(1, args.item_attempts)} "
+                        f"elapsed_seconds={elapsed_by_index[index]:.3f} error={safe_error_label(exc)}",
+                        flush=True,
+                    )
+                    if item_attempt < max(1, args.item_attempts):
+                        time.sleep(max(0.0, args.retry_delay_seconds) * item_attempt)
+                        continue
+                    if not args.continue_on_error:
+                        raise
+                    break
+
+                elapsed_by_index[index] = elapsed_by_index.get(index, 0.0) + (time.monotonic() - started)
+                calls_by_index[index] = calls_by_index.get(index, 0) + stats["api_calls"]
+                count += 1
+                item_succeeded = True
+                if args.print_output:
+                    print(f"\n--- GENERATED NOTE BODY index={index} ---\n{body}\n--- END GENERATED NOTE BODY index={index} ---", flush=True)
+                if not args.dry_run:
+                    item["summary_model"] = config.get("model")
+                    item["summary_generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                    item["summary_elapsed_seconds"] = round(elapsed_by_index[index], 3)
+                    item["summary_api_calls"] = calls_by_index[index]
+                    item["summary_item_attempts"] = attempts_by_index[index]
+                    write_manifest_atomic(args.manifest, manifest)
+                print(
+                    f"[{index}] completed elapsed_seconds={elapsed_by_index[index]:.3f} "
+                    f"api_calls={calls_by_index[index]} item_attempts={attempts_by_index[index]}",
+                    flush=True,
+                )
+                break
+            if not item_succeeded:
+                pending.append(item)
+
+        if pending and round_number < rounds:
+            time.sleep(max(0.0, args.retry_delay_seconds) * round_number)
+
+    if pending:
+        failed = ",".join(str(int(item.get("index", 0))) for item in pending)
+        print(f"Summary worker incomplete failed_indices={failed}", flush=True)
+        return 1
     print(f"Summarized {count} notes with {config.get('model')}.")
     return 0
 
