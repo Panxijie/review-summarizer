@@ -4,7 +4,7 @@
   "endpoint": "/chat/completions",
   "api_key_env": "DEEPSEEK_API_KEY",
   "model": "deepseek-v4-pro",
-  "temperature": 0.2,
-  "max_tokens": 4096,
+  "temperature": 0.1,
+  "max_tokens": 16384,
   "timeout_seconds": 300
 }
