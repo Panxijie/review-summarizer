@@ -1,44 +1,44 @@
 # Review Summarizer
 
-Codex skill for turning already-local source materials into human-reviewable Markdown notes for a Wiki Library workflow.
+一个 Codex skill，用于把已经保存在本地的原始材料整理成可人工复核的 Markdown 候选笔记，服务于 Wiki Library 工作流。
 
-The skill starts from files that already exist under `raw/originals/` and writes candidate notes to `raw/review/current/`. It does not fetch web pages, log in to platforms, download media, or promote notes into a final wiki.
+这个 skill 从 `raw/originals/` 下已有的文件开始处理，并把候选笔记写入 `raw/review/current/`。它不会抓取网页、登录平台、下载媒体，也不会把候选笔记提升到最终 wiki。
 
-## What It Includes
+## 包含内容
 
-- Material profiles for WeChat articles, general web articles, and Douyin videos.
-- Prompt templates and an OpenAI-compatible model config template.
-- Scripts for article summarization, Douyin transcript summarization, retry-safe manifest updates, parallel summary supervision, and review-note organization.
-- Guardrails for keeping API keys, cookies, signed URLs, source text, and model responses out of logs and committed files.
+- 面向微信公众号文章、普通网页文章和抖音视频的材料 profile。
+- Prompt 模板和 OpenAI-compatible 模型配置模板。
+- 用于文章总结、抖音转写稿总结、可重试 manifest 更新、并行总结监督和候选笔记整理的脚本。
+- 用于避免 API key、cookie、signed URL、源文本和模型响应进入日志或提交文件的安全约束。
 
-## Repository Layout
+## 仓库结构
 
-- `SKILL.md`: Codex skill instructions and workflow rules.
-- `summary_profiles/`: profile metadata, prompts, and model config templates.
-- `scripts/`: summarization, organization, metadata, and manifest helper scripts.
-- `agents/openai.yaml`: display metadata for the Codex skill.
+- `SKILL.md`：Codex skill 指令和工作流规则。
+- `summary_profiles/`：profile 元数据、prompts 和模型配置模板。
+- `scripts/`：总结、整理、元数据和 manifest 辅助脚本。
+- `agents/openai.yaml`：Codex skill 的展示元数据。
 
-## Setup
+## 安装
 
-Clone or copy this repository into your Codex skills directory, for example:
+将此仓库克隆或复制到你的 Codex skills 目录，例如：
 
 ```bash
 ~/.codex/skills/review-summarizer
 ```
 
-Configure API access with environment variables. The default model config reads the key from `DEEPSEEK_API_KEY`; do not commit real keys into this repository.
+通过环境变量配置 API 访问。默认模型配置会从 `DEEPSEEK_API_KEY` 读取密钥；不要把真实密钥提交到此仓库。
 
-On macOS with Codex Desktop, GUI apps may not inherit shell exports. Set the key for the login session with:
+在 macOS 的 Codex Desktop 中，GUI app 可能不会继承 shell 里的 `export`。可以用下面的命令把密钥设置到当前登录会话：
 
 ```zsh
 launchctl setenv DEEPSEEK_API_KEY 'your-key-here'
 ```
 
-Then fully quit and reopen Codex.
+然后完全退出并重新打开 Codex。
 
-## Usage
+## 用法
 
-For a local article:
+处理本地文章：
 
 ```bash
 python3 scripts/summarize_article_to_review.py \
@@ -47,14 +47,14 @@ python3 scripts/summarize_article_to_review.py \
   --input "Wiki Library/raw/originals/web/YYYY-MM-DD/article.md"
 ```
 
-For a Douyin pull manifest created by `dy-faves-puller`:
+处理由 `dy-faves-puller` 创建的抖音 pull manifest：
 
 ```bash
 python3 scripts/summarize_notes_with_model.py \
   --manifest "Wiki Library/raw/originals/douyin/pulls/<pull-id>/json/run_manifest.json"
 ```
 
-Preview organization before applying:
+在正式整理前先预览：
 
 ```bash
 python3 scripts/organize_content_library.py \
@@ -63,12 +63,12 @@ python3 scripts/organize_content_library.py \
   --pulled-at "YYYY-MM-DD HH:MM"
 ```
 
-## Safety Notes
+## 安全说明
 
-This repository is intended to contain reusable code, prompts, and templates only. Keep local source materials, transcripts, media files, logs, `.env` files, cookies, signed URLs, and model-provider secrets outside Git.
+此仓库只应该包含可复用的代码、prompts 和模板。请将本地原始材料、转写稿、媒体文件、日志、`.env` 文件、cookie、signed URL 和模型服务商密钥保留在 Git 之外。
 
-The included `.gitignore` excludes common local secret files, local model configs, logs, caches, and build output. If you create provider-specific configs with real credentials, use a `*.local.json`, `*-local.json`, or private ignored path.
+仓库内置的 `.gitignore` 已排除常见本地密钥文件、本地模型配置、日志、缓存和构建输出。如果你创建包含真实凭据的服务商专用配置，请使用 `*.local.json`、`*-local.json` 或其他已忽略的私有路径。
 
-## License
+## 许可证
 
 MIT
