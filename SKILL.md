@@ -101,13 +101,27 @@ Do not run `organize_content_library.py --apply` merely because the summarizer h
 
 If any record is missing, stale, or invalid, keep it out of review and repair or retry it before organization. Treat a process timeout or a detached process with incomplete logs as incomplete, not as a successful summary run.
 
-For long manifests, start a durable worker that processes the full selected index set without waiting for heartbeat turns. Use `--indices` to define scope, `--request-attempts` for transient API/no-text failures, `--item-attempts` for whole-item retries, `--failure-rounds` plus `--continue-on-error` to revisit failures without leaving later items idle, and `--require-model` when the user requires one exact model. The script records `summary_elapsed_seconds`, `summary_api_calls`, and `summary_item_attempts` for each successful item.
+For a Douyin pull, use the self-supervising detached pipeline instead of starting a summary worker and a separate process that waits on its PID:
+
+```bash
+python3 "Codex Skills/review-summarizer/scripts/run_douyin_review_pipeline.py" \
+  --manifest "Wiki Library/raw/originals/douyin/pulls/<pull-id>/json/run_manifest.json" \
+  --output-root "Wiki Library/raw/originals/douyin" \
+  --pull-id "<pull-id>" \
+  --detach
+```
+
+The supervisor acquires a per-manifest lock, selects only new aweme IDs, starts and waits for the summary worker itself, records worker progress to `summary-retry.log`, applies bounded request/item/failure retries, enforces the completion gate, previews and applies organization for the same index set, backfills local links, and verifies final files. It keeps one process responsible for the whole sequence; do not launch a separate worker or PID-waiting wrapper. Confirm `review-supervisor.pid` and `review-supervisor.log` show a live supervisor or a final exit result before ending the active turn. A heartbeat remains read-only and reports progress; it is not the recovery owner. If the supervisor exits with an incomplete gate, inspect its log and artifacts, then restart the same pipeline so its lock, manifest state, and current review notes allow a safe resume.
+
+For article summaries, use the article workflow above. For targeted repairs to a running Douyin job, use the selected `--indices` with the same retry controls (`--request-attempts`, `--item-attempts`, `--failure-rounds`, and `--continue-on-error`) and never run concurrent writers against one manifest. The model script records `summary_elapsed_seconds`, `summary_api_calls`, and `summary_item_attempts` for each successful item.
 
 Default to one worker. When observed local utilization is low, model calls dominate elapsed time, and the user authorizes parallel execution, use `scripts/run_parallel_douyin_summary.py` with two workers; increase to at most three only after two-worker stability. The supervisor balances disjoint indices by transcript size, gives each worker a separate shard manifest and log, validates completed notes, and is the sole atomic writer to the main manifest. It automatically retries unresolved indices once with a serial fallback. Never start multiple `summarize_notes_with_model.py` processes against the same manifest.
 
 Both the sequential worker and parallel supervisor take a non-blocking main-manifest lock. If all configured retries and the serial fallback still leave failed indices, inspect and repair them before organization; do not treat partial progress as completion. Keep successful manifest entries intact.
 
 When a pull reuses prior assets or review notes, match records by the pair `(pull_id, manifest_item_index)`, never by `manifest_item_index` alone. Confirm the selected note and transcript paths exist before sending them to the model; if they do not, rebuild a pull-scoped repair manifest instead of silently skipping the item or modifying a note from another pull.
+
+Before summarizing or organizing a new pull, compare eligible `aweme_id` values with notes already present under `raw/review/current/`. Exclude exact matches from the new-candidate index set; keep their existing notes and pull-manifest records untouched. Run the summarizer and organizer against the same explicit index set (`--indices`) so an old candidate is not summarized again or appended twice. If the pull has no new candidates, report that and do not invoke the model or organizer.
 
 Preview organization:
 
@@ -137,6 +151,8 @@ The apply pass writes candidate notes under `Wiki Library/raw/review/current/<ca
 When a long model-summary or organization run starts, immediately create a heartbeat automation attached to the current Codex thread; do this by default without waiting for the user to request periodic updates. Unless the user specifies another interval, report every 5 minutes. Heartbeats are read-only observers: they inspect the manifest, worker process, and sanitized log markers, but never launch the next batch, call the model, or write the manifest. The durable worker must continue independently between heartbeat reports. Each report should state selected, model-complete, validated, and organized counts, the active index or retry round, elapsed timing when available, and sanitized error types; never expose API keys, request bodies, responses, source text, cookies, or signed URLs. When every selected eligible record has passed the completion gate and organization has completed, report the final result and delete the heartbeat automation. Also delete it if the run is cancelled or the batch scope materially changes.
 
 Starting a detached summary worker does not transfer completion ownership to the heartbeat. Keep the primary task active while waiting for that worker, then continue immediately through completion-gate validation, organization preview, authorized apply, local-link backfill, final verification, and heartbeat deletion. Never end the primary task at a summary-only milestone while leaving only a read-only heartbeat behind. If the environment cannot keep the primary task active across the wait, start one explicit durable completion pipeline before yielding; that pipeline must own the remaining stages in order and must not write the main manifest concurrently with a summary worker.
+
+If a durable summary worker exits unexpectedly or produces neither an active process nor any new sanitized log/artifact progress, treat the run as failed rather than pending. Report the failure through the heartbeat and, when the user asks to continue, inspect the manifest to retain completed records and restart only unresolved selected indices with a durable worker. Verify that the restarted worker is actually alive or has produced its first progress marker before yielding again. If a system service cannot access the source directory because of host permissions, use a managed process from the already-authorized workspace session instead; do not keep retrying the inaccessible service. The replacement pipeline must still run completion-gate validation, authorized organization, local-link backfill, final verification, and heartbeat cleanup; a heartbeat must not be the only recovery mechanism.
 
 ### Douyin review 分类规则
 

@@ -381,6 +381,7 @@ def main() -> int:
     parser.add_argument("--note-extracts", type=Path)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--note-title-overrides", type=Path, help="JSON mapping index, URL, or original title to a summary-based note title.")
+    parser.add_argument("--indices", nargs="*", type=int, help="Only organize these manifest item indices; leave all other rows untouched.")
     parser.add_argument("--apply", action="store_true", help="Apply moves. Default is a preview.")
     parser.add_argument("--allow-nonempty-current", action="store_true", help="Append into raw/review/current even when it already contains review notes.")
     args = parser.parse_args()
@@ -391,6 +392,7 @@ def main() -> int:
         ensure_review_dirs(args.output)
     manifest_path = find_manifest(args.output, args.manifest)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    selected_indices = set(args.indices or [])
     title_overrides = load_title_overrides(args.note_title_overrides)
     pulled_at = parse_pulled_at(args.pulled_at, manifest, manifest_path)
     pull_date = pulled_at.strftime("%Y-%m-%d")
@@ -405,6 +407,8 @@ def main() -> int:
 
     for item in manifest:
         index = int(item["index"])
+        if selected_indices and index not in selected_indices:
+            continue
         if not item.get("note"):
             print(f"[{index:02d}] {item.get('status')}")
             continue
