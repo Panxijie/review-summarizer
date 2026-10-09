@@ -15,7 +15,7 @@
 
 ## 安装与模型配置
 
-将此仓库克隆或复制到 Codex skills 目录，例如 `~/.codex/skills/review-summarizer`。运行命令前，先在 `summary_profiles/index.md` 选择材料类型，并检查对应 profile 和模型配置。默认模板通过 `DEEPSEEK_API_KEY` 读取 API key；不要把真实密钥写入仓库。
+将此仓库克隆或复制到 Codex skills 目录，例如 `~/.codex/skills/review-summarizer`。运行命令前，先在 `summary_profiles/index.md` 选择材料类型，并检查对应 profile 和模型配置。当前三个 profile 共用默认配置 `summary_profiles/model_configs/openai-compatible-default.json`，模型 ID 为 `deepseek-flash`（DeepSeek V4.1 Flash），通过 `DEEPSEEK_API_KEY` 读取 API key；不要把真实密钥写入仓库。更改默认模型只影响后续模型调用，不会自动重写已生成的候选笔记。
 
 在 macOS 的 Codex Desktop 中，GUI app 可能不会继承 shell 里的 `export`。可在 Terminal 为当前登录会话设置环境变量，然后完全退出并重新打开 Codex：
 
@@ -62,7 +62,7 @@ python3 "$SKILL_DIR/scripts/run_douyin_review_pipeline.py" \
 
 流水线完成后，逐条核对本批候选的标题、正文和分类；必要时调整 `category`、`subcategory` 与笔记所在目录。完整完成条件和现有分类规则见 [`SKILL.md`](SKILL.md)。
 
-需要分步修复时，可使用 `summarize_notes_with_model.py` 的 `--indices` 只重试指定记录，再以同一组索引运行 `organize_content_library.py` 预览，确认完成条件后加 `--apply`。并行总结入口 `run_parallel_douyin_summary.py` 适用于经授权的批次，使用要求见 `SKILL.md`。
+需要分步修复时，可使用 `summarize_notes_with_model.py` 的 `--indices` 只重试指定记录，再以同一组索引运行 `organize_content_library.py` 预览，确认完成条件后加 `--apply`。并行总结入口 `run_parallel_douyin_summary.py` 适用于经授权的批次；它的 `--require-model` 应与配置中的模型 ID 一致，当前为 `deepseek-flash`。使用要求见 `SKILL.md`。
 
 ## 安全说明
 
