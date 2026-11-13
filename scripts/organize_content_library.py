@@ -480,6 +480,7 @@ def main() -> int:
         if images:
             section_assets["transcript"] = item["transcript"]
             meta.update({key: item[key] for key in ("ocr_engine", "ocr_status", "ocr_needs_check") if key in item})
+        meta.update({key: item[key] for key in ("transcript_source", "transcript_engine", "subtitle_language") if key in item})
         body = insert_local_file_section(body, local_file_section(note_target, section_assets, images) if section_assets else "")
 
         old_note_dir = note_source.parent

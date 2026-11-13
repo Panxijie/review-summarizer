@@ -202,6 +202,9 @@ def build_user_prompt(item: dict, meta: dict, transcript: str, max_chars: int) -
     if item.get("images"):
         fields["ocr_needs_check"] = item.get("ocr_needs_check") or []
         source_label = "本地帖文正文和逐图 OCR"
+    elif (item.get("transcript_source") or meta.get("transcript_source")) == "douyin_subtitle":
+        fields["subtitle_language"] = item.get("subtitle_language") or meta.get("subtitle_language")
+        source_label = "抖音平台字幕"
     else:
         source_label = "本地语音转写"
     transcript = compact_transcript(transcript, max_chars)
