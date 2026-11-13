@@ -199,12 +199,17 @@ def build_user_prompt(item: dict, meta: dict, transcript: str, max_chars: int) -
         "shares": meta.get("shares"),
         "tags": meta.get("tags") or [],
     }
+    if item.get("images"):
+        fields["ocr_needs_check"] = item.get("ocr_needs_check") or []
+        source_label = "本地帖文正文和逐图 OCR"
+    else:
+        source_label = "本地语音转写"
     transcript = compact_transcript(transcript, max_chars)
     return (
         "请把下面这条抖音收藏整理成最终 Markdown 笔记正文。\n\n"
         "元数据：\n"
         f"{json.dumps(fields, ensure_ascii=False, indent=2)}\n\n"
-        "本地语音转写：\n"
+        f"{source_label}：\n"
         f"{transcript or '[无可用转写]'}\n"
     )
 

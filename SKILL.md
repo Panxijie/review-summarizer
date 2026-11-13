@@ -89,7 +89,7 @@ python3 "Codex Skills/review-summarizer/scripts/summarize_notes_with_model.py" \
   --manifest "Wiki Library/raw/originals/douyin/pulls/<pull-id>/json/run_manifest.json"
 ```
 
-This rewrites only each staging note body below YAML frontmatter and preserves metadata such as `likes`, `comments`, `favorites`, `shares`, `tags`, `source_url`, `duration`, and `content_type`.
+This rewrites only each staging note body below YAML frontmatter and preserves metadata such as `likes`, `comments`, `favorites`, `shares`, `tags`, `source_url`, `duration`, and `content_type`. For image posts, the manifest's `transcript` field points to the local post text and per-image OCR. Send that text to the configured summary model under the same authorization rules as a transcript. Keep the images as local evidence.
 
 ### Completion gate before organization
 
@@ -146,6 +146,16 @@ If `raw/review/current/` already contains notes, append only when the user expli
 
 The apply pass writes candidate notes under `Wiki Library/raw/review/current/<category>/`, moves local source assets into `Wiki Library/raw/originals/douyin/assets/`, and updates the manifest with final paths.
 
+### Final classification review after all summaries
+
+Do not audit or change categories while summary calls are still running. After every selected eligible item has passed the completion gate and its summary is complete, review the classification of the entire candidate batch before reporting it finished:
+
+1. Check every generated candidate, not just a sample. Compare its title, tags, summary, and detailed content with the existing category and subcategory rules above.
+2. Classify by the item's main subject and use. Do not let incidental keywords, examples, or tool names override the main subject. For example, career interviews about AI belong under `职场与发展/面试表达`; technical explanations of networking concepts belong under `技术与工具`; dating and meeting-partner advice belongs under `情感与关系`; sleep, household appliances, and everyday health guidance belong under `日常与生活`; job-role and salary comparisons belong under `职场与发展`.
+3. Use `待分类` only when the completed note still lacks enough evidence to choose a category reliably.
+4. Correct any wrong `category` or `subcategory` metadata and move the note into the matching existing category directory. Preserve its summary, detailed content, cautions, metadata unrelated to classification, and valid local-file links. Do not create new category directories.
+5. Re-scan the whole batch and verify that each note's metadata matches its directory and the chosen category rules. Only then report the batch as fully organized.
+
 ### Periodic progress reports
 
 When a long model-summary or organization run starts, immediately create a heartbeat automation attached to the current Codex thread; do this by default without waiting for the user to request periodic updates. Unless the user specifies another interval, report every 5 minutes. Heartbeats are read-only observers: they inspect the manifest, worker process, and sanitized log markers, but never launch the next batch, call the model, or write the manifest. The durable worker must continue independently between heartbeat reports. Each report should state selected, model-complete, validated, and organized counts, the active index or retry round, elapsed timing when available, and sanitized error types; never expose API keys, request bodies, responses, source text, cookies, or signed URLs. When every selected eligible record has passed the completion gate and organization has completed, report the final result and delete the heartbeat automation. Also delete it if the run is cancelled or the batch scope materially changes.
@@ -180,7 +190,7 @@ Douyin notes must contain:
 - `## 摘要`
 - `## 详细内容`
 - `## 注意事项`
-- `## 本地文件` when local media or transcript assets exist. For each successfully processed video, this section must be the final section and link to all three local files: MP4 (`原视频`), transcript (`转写稿`), and audio (`音频`). A model refresh must preserve this section; if it is absent, run `scripts/backfill_douyin_local_file_links.py` against the pull manifest before delivery.
+- `## 本地文件` is the final section. For videos link MP4 (`原视频`), transcript (`转写稿`), and audio (`音频`). For image posts link each original image in carousel order and the `OCR 文字稿`; carry forward the OCR status and any image numbers that need checking. A model refresh must preserve this section. If it is absent, run `scripts/backfill_douyin_local_file_links.py` against the pull manifest before delivery.
 
 Do not optimize for the shortest possible note. Preserve examples, steps, settings, comparisons, names, numbers, claims, caveats, and reusable phrasing when they are present in the source.
 

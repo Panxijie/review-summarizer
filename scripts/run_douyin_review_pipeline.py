@@ -216,6 +216,8 @@ def completion_errors(p: dict[str, Path | str]) -> tuple[list[dict], list[str]]:
         if not note.is_file() or not transcript.is_file():
             errors.append(f"index_{idx}_missing_note_or_transcript")
             continue
+        if any(not resolve_local(image, p).is_file() for image in item.get("images") or []):
+            errors.append(f"index_{idx}_missing_original_image")
         text = note.read_text(encoding="utf-8", errors="replace")
         if not item.get("summary_model") or not item.get("summary_generated_at"):
             errors.append(f"index_{idx}_missing_summary_metadata")
@@ -259,7 +261,12 @@ def verify_final(p: dict[str, Path | str]) -> tuple[int, list[str]]:
         if headings and "## 本地文件" not in text[headings[-1]:]:
             errors.append(f"index_{idx}_local_files_not_final_section")
         local = text[text.rfind("## 本地文件"):]
-        for label in ("原视频", "转写稿", "音频"):
+        images = item.get("images") or []
+        labels = (
+            [*(f"原图 {number}" for number in range(1, len(images) + 1)), "OCR 文字稿"]
+            if images else ["原视频", "转写稿", "音频"]
+        )
+        for label in labels:
             match = re.search(rf"(?m)^- {label}: \[[^\]]+\]\(([^)]+)\)", local)
             if not match:
                 errors.append(f"index_{idx}_missing_{label}_link")

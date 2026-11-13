@@ -273,7 +273,14 @@ def rel_link(note: Path, target: str) -> str:
     return Path(os.path.relpath(target, start=note.parent)).as_posix()
 
 
-def local_file_section(note_target: Path, moved: dict[str, str]) -> str:
+def local_file_section(note_target: Path, moved: dict[str, str], images: list[str] | None = None) -> str:
+    if images:
+        lines = ["## 本地文件"]
+        for number, target in enumerate(images, start=1):
+            lines.append(f"- 原图 {number}: [{Path(target).name}]({rel_link(note_target, target)})")
+        if target := moved.get("transcript"):
+            lines.append(f"- OCR 文字稿: [{Path(target).name}]({rel_link(note_target, target)})")
+        return "\n".join(lines)
     labels = [
         ("video", "原视频"),
         ("image", "原图"),
@@ -435,10 +442,16 @@ def main() -> int:
         destinations = {
             "video": asset_dir(args.output, "video") / f"{stem}-video{Path(item['video']).suffix}" if item.get("video") else None,
             "audio": asset_dir(args.output, "audio") / f"{stem}-audio{Path(item['audio']).suffix}" if item.get("audio") else None,
-            "transcript": asset_dir(args.output, "transcript") / f"{stem}-transcript.txt" if item.get("transcript") else None,
+            "transcript": asset_dir(args.output, "transcript") / f"{stem}-transcript.txt" if item.get("transcript") and not item.get("images") else None,
             "image": asset_dir(args.output, "image") / f"{stem}-image{Path(item['image']).suffix}" if item.get("image") else None,
             "detail_json": detail_dir / f"{stem}.json" if item.get("detail_json") else None,
         }
+        images = item.get("images") or []
+        if images:
+            # The puller archives OCR assets by post ID, independently of the review title and category.
+            for asset in [*images, item["transcript"]]:
+                if not Path(asset).is_file():
+                    raise FileNotFoundError(asset)
         moved: dict[str, str] = {}
         for key, target in destinations.items():
             if target:
@@ -464,7 +477,10 @@ def main() -> int:
         )
         body = update_legacy_links(body, moved, note_target)
         section_assets = {key: value for key, value in moved.items() if key in {"video", "image", "transcript", "audio"}}
-        body = insert_local_file_section(body, local_file_section(note_target, section_assets) if section_assets else "")
+        if images:
+            section_assets["transcript"] = item["transcript"]
+            meta.update({key: item[key] for key in ("ocr_engine", "ocr_status", "ocr_needs_check") if key in item})
+        body = insert_local_file_section(body, local_file_section(note_target, section_assets, images) if section_assets else "")
 
         old_note_dir = note_source.parent
         old_bundle = Path(item["bundle"]) if item.get("bundle") else old_note_dir
